@@ -155,6 +155,7 @@ void ConsumeMessageConcurrentlyService::ConsumeRequest(boost::weak_ptr<PullReque
   }
 
   ConsumeStatus status = CONSUME_SUCCESS;
+  std::vector<ConsumeStatus> statusVector;
   if (m_pMessageListener != NULL) {
     resetRetryTopic(msgs);
     request->setLastConsumeTimestamp(UtilAll::currentTimeMillis());
@@ -164,7 +165,7 @@ void ConsumeMessageConcurrentlyService::ConsumeRequest(boost::weak_ptr<PullReque
       MessageAccessor::withoutNameSpace(msgs, m_pConsumer->getNameSpace());
     }
     try {
-      status = m_pMessageListener->consumeMessage(msgs);
+      status = m_pMessageListener->consumeMessage(msgs, statusVector);
     } catch (...) {
       status = RECONSUME_LATER;
       LOG_ERROR("Consumer's code is buggy. Un-caught exception raised");
@@ -194,6 +195,10 @@ void ConsumeMessageConcurrentlyService::ConsumeRequest(boost::weak_ptr<PullReque
     }
     case CLUSTERING: {
       // send back msg to broker;
+      bool valid = false;
+      if (statusVector.size() == msgs.size()) {
+        valid= true;
+      }
       for (size_t i = ackIndex + 1; i < msgs.size(); i++) {
         LOG_DEBUG("consume fail, MQ is:%s, its msgId is:%s, index is:" SIZET_FMT ", reconsume times is:%d",
                   (request->m_messageQueue).toString().c_str(), msgs[i].getMsgId().c_str(), i,
@@ -203,6 +208,11 @@ void ConsumeMessageConcurrentlyService::ConsumeRequest(boost::weak_ptr<PullReque
           if (m_pConsumer->isUseNameSpaceMode()) {
             MessageAccessor::withNameSpace(msgs[i], m_pConsumer->getNameSpace());
           }
+          if (valid && statusVector[i] == CONSUME_SUCCESS) {
+            //success的消息不需要再发了
+            continue;
+          }
+
           if (!m_pConsumer->sendMessageBack(msgs[i], 0, brokerName)) {
             LOG_WARN("Send message back fail, MQ is:%s, its msgId is:%s, index is:%d, re-consume times is:%d",
                      (request->m_messageQueue).toString().c_str(), msgs[i].getMsgId().c_str(), i,
