@@ -44,6 +44,7 @@ class ROCKETMQCLIENT_API MessageListenerOrderly : public MQMessageListener {
  public:
   virtual ~MessageListenerOrderly() {}
   virtual ConsumeStatus consumeMessage(const std::vector<MQMessageExt>& msgs) = 0;
+  virtual ConsumeStatus consumeMessage(const std::vector<MQMessageExt>& msgs, std::vector<ConsumeStatus> & status){};
   virtual MessageListenerType getMessageListenerType() { return messageListenerOrderly; }
 };
 
